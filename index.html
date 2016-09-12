@@ -1,28 +1,19 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PhotoShow</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">    
-    <link href="thirdparty/bootstrap-3.3.7-dist/css/bootstrap.css" rel="stylesheet"/>
-    <link href="css/styles.css" rel="stylesheet"/>
+    <title>PhotoShow Login</title>
+    <script type="text/javascript">
+            // DEV
+            //window.location.href = "https://www.facebook.com/dialog/oauth?app_id=757081597762955&client_id=757081597762955&redirect_uri=http://localhost:8080/PhotoShow/"
+
+            // PROD
+            window.location.href = "https://www.facebook.com/dialog/oauth?app_id=754651064672675&client_id=757081597762955&redirect_uri=http://khphotoshowweb.s3-website-eu-west-1.amazonaws.com/"
+
+    </script>
+    <title>Page Redirection</title>
 </head>
-<body>    
-   
-    <div id="app"></div>
-    <div id="thumbnail">No photo</div>
-    
-    <script src="thirdparty/jquery.js"></script>
-    <script src="thirdparty/react.js"></script>
-    <script src="thirdparty/jsxtransformer.js"></script>
-    <script src="thirdparty/react-slick.js"></script>
-    <script src="thirdparty/bootstrap-3.3.7-dist/js/bootstrap.js"></script>    
-
-        
-    <script src="thirdparty/aws-sdk-2.1.12.min.js"></script>
-    <script src="js/fb-aws-auth.js"></script>
-    <script src="js/app.js" type="text/jsx"></script   
-
+<body>
+        <!-- Note: don't tell people to `click` the link, just tell them that it is a link. -->
+        If you are not redirected automatically, follow the <a href='https://www.facebook.com/dialog/oauth?app_id=754651064672675&client_id=757081597762955&redirect_uri=http://khphotoshowweb.s3-website-eu-west-1.amazonaws.com/'>link to Facebook Login</a>
 </body>
 </html>
-
