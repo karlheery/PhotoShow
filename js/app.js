@@ -4,6 +4,7 @@ var album = {
     name: "France",
     background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
     description: "Heery Holiday - France 2016 (July 9th-29th)",
+    basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
     media: [ ]
 };
 
@@ -28,11 +29,12 @@ var PhotoShow = React.createClass({
         });
         var fbUserId;
       
+      
         /*!
          * Login to your application using Facebook.
          * Uses the Facebook SDK for JavaScript available here:
          * https://developers.facebook.com/docs/javascript/gettingstarted/
-         */
+         
         window.fbAsyncInit = function () {
             FB.init({
                 appId: appId
@@ -47,10 +49,8 @@ var PhotoShow = React.createClass({
                 
                 fbUserId = response.authResponse.userID;
                 console.log( "identified FB user id " + fbUserId );                
-      
-            /**
-             * Now connect to S3 bucket
-             */
+                  
+
             prefix = 'facebook-' + fbUserId;
             console.log( "getting S3 objects from " + prefix );
 
@@ -58,7 +58,12 @@ var PhotoShow = React.createClass({
                 Prefix: prefix
             }, function (err, data) {        
                 if (err) {
-                    console.error( "failed to load images from " + prefix + ". ERROR: '" + err );
+                    msg = "failed to load images from " + prefix + ". ERROR: '" + err;
+                    console.error( msg );
+                    
+                    var messageArea = document.getElementById('messageArea');
+                    messageArea.innerHTML = msg;                       
+        
                 } else {                    
                     data.Contents.forEach(function (obj) {
 
@@ -68,16 +73,84 @@ var PhotoShow = React.createClass({
                             console.log( "adding media file "+ obj.Key + " to list of " + this.album.media.length  );
                             this.album.media.push(obj.Key);
                         }                        
-                    });
-                    
-                    //console.log( "added " + this.album.media.length + " for display" );
-                    //var url = bucket.getSignedUrl('getObject' );                    
+                    });                    
                 }
             });  
 
 
             });
         };
+        */
+
+
+        /*!
+         * Login to your application using Facebook.
+         * Uses the Facebook SDK for JavaScript available here:
+         * https://developers.facebook.com/docs/javascript/gettingstarted/
+         */
+        window.fbAsyncInit = function () {
+        FB.init({
+                appId: appId
+        });
+
+        FB.getLoginStatus(function(response) {
+
+            if (response.status === 'connected') {
+                // the user is logged in and has authenticated your app, and response.authResponse supplies
+                // the user's ID, a valid access token, a signed request, and the time the access token 
+                // and signed request each expire
+                var fbUserId = response.authResponse.userID;
+                var accessToken = response.authResponse.accessToken;
+
+                var messageArea = document.getElementById('messageArea');
+                messageArea.innerHTML = "Welcome " + fbUserId;  
+
+                console.log( "authenticating with facebook using ARN " + roleArn );                
+                bucket.config.credentials = new AWS.WebIdentityCredentials({
+                    ProviderId: 'graph.facebook.com',
+                    RoleArn: roleArn,
+                    WebIdentityToken: response.authResponse.accessToken
+                    });
+                
+                fbUserId = response.authResponse.userID;
+                console.log( "identified FB user id " + fbUserId );                            
+
+                prefix = 'facebook-' + fbUserId;
+                console.log( "getting S3 objects from " + prefix );
+
+                bucket.listObjects({
+                    Prefix: prefix
+                    }, function (err, data) {        
+                        if (err) {
+                            msg = "failed to load images from " + prefix + ". ERROR: '" + err;
+                            console.error( msg );
+                            
+                            var messageArea = document.getElementById('messageArea');
+                            messageArea.innerHTML = msg;                       
+                
+                        } else {                    
+                            data.Contents.forEach(function (obj) {
+
+                                // ignore directory
+                                if( obj.Key.endsWith("JPG") || obj.Key.endsWith("jpg") || obj.Key.endsWith("jpeg") || 
+                                    obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {                        
+                                    console.log( "adding media file "+ obj.Key + " to list of " + this.album.media.length  );
+                                    this.album.media.push(obj.Key);
+                                }                        
+                            });                    
+                        }
+                }); 
+
+            } else {
+                // the user is logged in to Facebook, but has not authenticated your app i.e. response.status === 'not_authorized'
+                // or the user isn't logged in to Facebook.
+
+                window.location.href="index.html";
+                //FB.login();       // popup approach
+            }
+        });
+        };
+
 
          // Load the Facebook SDK asynchronously
         (function (d, s, id) {
@@ -99,7 +172,10 @@ var PhotoShow = React.createClass({
     render: function() {
         return ( 
             <div>                        
-            <MediaCanvas background={this.props.data.background} description={this.props.data.description} medialist={this.props.data.media} />
+            <MediaCanvas background={this.props.data.background}
+                description={this.props.data.description} 
+                basedir={this.props.data.basedir} 
+                medialist={this.props.data.media} />
             </div> 
         );
     }
@@ -111,9 +187,9 @@ var PhotoShow = React.createClass({
 /**
  * MediaCanvas
  * 
- * Controls the rendering of images on
+ * Controls the rendering of images on canvas, and all that that entails ...probably too much responsibility in fact
+ * 
  */
-
 var MediaCanvas = React.createClass({
 
       
@@ -142,7 +218,7 @@ var MediaCanvas = React.createClass({
 
 
         var background = new Image();
-        background.src = "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg";
+        background.src = this.props.background;
 
         background.onload = function(){
             context.drawImage(background,0,0);
@@ -151,7 +227,7 @@ var MediaCanvas = React.createClass({
             //context.font = "Comic Sans MS";
             context.font = "20px Sans Serif";
             context.textBaseline = "top";
-            context.fillStyle = "#DDDDDD";            
+            context.fillStyle = "#6666BB";            
             //context.fillText( "hello", 20, 20 );
             context.fillText( description, 20, 20 );
             //context.globalAlpha = 1.0;   
@@ -183,7 +259,7 @@ var MediaCanvas = React.createClass({
         var canvas = document.getElementById( 'mediaview' );
         var context = canvas.getContext('2d');
         //var context = this.getDOMNode().getContext('2d');
-        var thumbnail = document.getElementById('thumbnail');                        
+        var messageArea = document.getElementById('messageArea');                        
         
         
         // if we're at the end of the media list, do nothing
@@ -208,7 +284,7 @@ var MediaCanvas = React.createClass({
 	    var index = this.state.indexArray.shift();
 
         // otherwise show the next image...
-        mediafile =  "https://s3-eu-west-1.amazonaws.com/khphotoshow/" + this.props.medialist[index];
+        mediafile =  this.props.basedir + this.props.medialist[index];
         console.log( "showing image " + index + " of " + this.props.medialist.length + ": " + mediafile + "(" + this.state.indexArray.length + " left)" );
 
         // max X coord is 40% across the screen given how we scale images to 60% of screen
@@ -241,7 +317,7 @@ var MediaCanvas = React.createClass({
 
             image = new Image();
             image.src = mediafile;
-            thumbnail.innerHTML = "" //<img src='" + mediafile + "' width=50 height=50/>";
+            messageArea.innerHTML = "" //<img src='" + mediafile + "' width=50 height=50/>";
             var scaledWidth = 600;
             var scaledHeight = 400;
             
@@ -265,6 +341,7 @@ var MediaCanvas = React.createClass({
                     var dateTaken = EXIF.getTag(this, "DateTimeOriginal");
                     if( !(dateTaken === undefined || dateTaken == null || dateTaken.length <= 0) ) {
                         //console.log( dateTaken );
+                        // NOT WORKING?!?!?!
                         //var d1 = Date.parseExact(dateTaken, 'yyyy:MM:dd hh:mm:ss' );
                         //console.log( d1 );
                         //dateTaken = d1.toString('MMMM d, yyyy');
@@ -316,7 +393,7 @@ var MediaCanvas = React.createClass({
 
                         window.mediaCanvas.shadowOn( false );
                         context.fillStyle = "#888888";                                                                                
-                        context.fillText( dateTaken, scaledWidth/2-90, scaledHeight/2-0 );
+                        context.fillText( dateTaken, scaledWidth/2-85, scaledHeight/2-0 );
                     }
                     else {   
                         context.fillStyle = "#EEEEEE";
