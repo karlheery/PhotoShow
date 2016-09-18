@@ -2,7 +2,8 @@
 
 var album = {
     name: "France",
-    description: "France - July 9th to 29th 2016",
+    background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
+    description: "Heery Holiday - France 2016 (July 9th-29th)",
     media: [ ]
 };
 
@@ -15,6 +16,7 @@ var PhotoShow = React.createClass({
         //var appId = '754651064672675';
         // DEV
         var appId = '757081597762955';
+
         var roleArn = 'arn:aws:iam::827454618391:role/PhotoShowRole';
         var bucketName = 'khphotoshow';
         AWS.config.region = 'eu-west-1';
@@ -97,7 +99,7 @@ var PhotoShow = React.createClass({
     render: function() {
         return ( 
             <div>                        
-            <MediaCanvas description={this.props.data.description} medialist={this.props.data.media} />
+            <MediaCanvas background={this.props.data.background} description={this.props.data.description} medialist={this.props.data.media} />
             </div> 
         );
     }
@@ -106,10 +108,17 @@ var PhotoShow = React.createClass({
 
 
 
+/**
+ * MediaCanvas
+ * 
+ * Controls the rendering of images on
+ */
+
 var MediaCanvas = React.createClass({
 
+      
     getInitialState: function() {
-        return { index: -1 };   // for indexing the photos
+        return { index: -1, playOrPauseAction: "Pause", shuffleOrUnshuffleAction: "Shuffle" };   // for indexing the photos
     },
 
 
@@ -120,7 +129,7 @@ var MediaCanvas = React.createClass({
         //this.setState({ animationId: aid });
 
         // set interval for the timer between showing photos
-        this.timer = setInterval(this.showMedia, 3000);
+        this.timer = setInterval(this.showMedia, 4000);
         
         var canvas = document.getElementById( 'mediaview' );
         var context = canvas.getContext('2d');        
@@ -147,15 +156,14 @@ var MediaCanvas = React.createClass({
             context.fillText( description, 20, 20 );
             //context.globalAlpha = 1.0;   
         }
-        
+                
+        window.mediaCanvas = this;
+
     },
 
 
     componentWillUnmount: function(){
         clearInterval(this.timer);
-
-        // this one helps reset to 0 on reload of the screen
-        this.setState({ index: -1 });
     },
     
 
@@ -163,6 +171,9 @@ var MediaCanvas = React.createClass({
     },
 
     
+
+    
+   
         
     /** 
      * Recursive loop through the array of medialist items, displaying each 
@@ -174,98 +185,255 @@ var MediaCanvas = React.createClass({
         //var context = this.getDOMNode().getContext('2d');
         var thumbnail = document.getElementById('thumbnail');                        
         
-        this.setState({ index: this.state.index + 1 });
-
+        
         // if we're at the end of the media list, do nothing
         // might I get a race condition here if animation id hasnt been saved in state yet above
-        if( this.state.index >= this.props.medialist.length ) {
-            console.log( "no more media"  );
-            this.setState({ index: -1 });
-            //clearInterval(this.timer);
-            //cancelAnimationFrame( this.state.animationId )
-            return;
+        //if( this.state.index >= this.props.medialist.length ) {
+        if( !this.state.indexArray || this.state.indexArray.length <= 0 ) {
+            console.log( "no (more) media - going back to start"  );
+            
+            // create an array of indexes of 0...N which we'll iterate through (or perhaps shuffle) to 
+            //  choose what media to display
+            console.log( "created indexArray of " + this.props.medialist.length + " items" );
+            indexArray = Array.apply(null, {length: this.props.medialist.length}).map(Number.call, Number)
+            this.setState({ indexArray: indexArray });
+
+            // shuffle or unshuffle according to (or indeed to flip from and therefore implement) initial state
+            window.mediaCanvas.toggleShuffle(); // refactor shuffle from toggle
+
         }
-                    
+
+
+        // pop the first value from the array
+	    var index = this.state.indexArray.shift();
+
         // otherwise show the next image...
-        mediafile =  "https://s3-eu-west-1.amazonaws.com/khphotoshow/" + this.props.medialist[this.state.index];
-        console.log( "showing image " + this.state.index + " of " + this.props.medialist.length + ": " + mediafile );
+        mediafile =  "https://s3-eu-west-1.amazonaws.com/khphotoshow/" + this.props.medialist[index];
+        console.log( "showing image " + index + " of " + this.props.medialist.length + ": " + mediafile + "(" + this.state.indexArray.length + " left)" );
 
         // max X coord is 40% across the screen given how we scale images to 60% of screen
-        var maxX = Math.floor( canvas.width * 0.4 );
-        var maxY = Math.floor( canvas.height * 0.4 );
+        var maxX = Math.floor( canvas.width * 0.6 );
+        var maxY = Math.floor( canvas.height * 0.6 );
         var xpos = Math.floor((Math.random() * maxX) + 1); 
         var ypos = Math.floor((Math.random() * maxY) + 1);
 
 
         // we'll rotate up to 5 deg max, and flip it half the time to negative
-        //var rotationAngle = Math.floor((Math.random() * 5) + 0) * Math.PI / 180;
-        var rotationAngle = 0.01;
+        var rotationAngle = Math.floor((Math.random() * 5) + 0) * Math.PI / 180;
         if( Math.floor((Math.random() * 2) + 1) == 2 )
             rotationAngle = rotationAngle * -1;
 
-        image = new Image();
-  	    image.src = mediafile;
-        thumbnail.innerHTML = "<img src='" + mediafile + "' width=50 height=50/>";
 
-          // might have issues later from having commented this callback approach out, but was losing reference
-          // to "this" which was stopping me call requestAnimationFrame again from within.
-          // I should be using interval anyway not animation right - so use this instead and reinstate onload?
-          // http://jsfiddle.net/martinaglv/3fZT2/
+        // font setting for writing on photos
+        context.font = "10px Sans Serif";
+        context.textBaseline = "top";            
 
-        image.onload = function(){
+        // Getting image data
+        //
+        var http = new XMLHttpRequest();
+        http.open("GET", mediafile, true);
+        http.responseType = "blob";
+        http.onload = function(e) {
 
-            // scale the image down if we have to, to X% of the canvas real estate.        
-            var scale = 0.6;     
-            var width = canvas.width * scale;
-            var height = image.height / image.width * width;
-            /* If both dimensions are smaller than the canvas
-            if( image.width < canvas.width && image.height < canvas.height ) {
-                width = image.width;
-                height = image.height;
-            }
-            */
-
-            console.log( "drawing image at (" + xpos + "," + ypos + ") of width " + width + " x " + height + " at angle " + rotationAngle );
-
-            // ISSUE - translating to centre of image (using width or image.width) is causing weird problems
-            // I THINK due to original images being so huge compared to what I scale them down to be
+            // assuming we load the media file URL ok
             //
-            // I cant rotate the angle without creating a page crash!!!
-            context.save();  
-            context.translate(xpos+0.5*image.width,ypos+0.5*image.height);
-            //context.rotate(rotationAngle);
+            if (this.status === 200) {
 
-            // draw the photo outline
-            context.shadowOffsetX = 2;  
-            context.shadowOffsetY = 4;
-            context.shadowColor = 'black';
-            context.shadowBlur = 8;
-            //context.fillRect( xpos-7, ypos-7, width+14, height+14);
-            context.fillRect( -0.5*image.width-7, -0.5*image.height-7, width+14, height+14);
+            image = new Image();
+            image.src = mediafile;
+            thumbnail.innerHTML = "" //<img src='" + mediafile + "' width=50 height=50/>";
+            var scaledWidth = 600;
+            var scaledHeight = 400;
+            
+            // might have issues later from having commented this callback approach out, but was losing reference
+            // to "this" which was stopping me call requestAnimationFrame again from within.
+            // I should be using interval anyway not animation right - so use this instead and reinstate onload?
+            // http://jsfiddle.net/martinaglv/3fZT2/
+
+            // this callback causes the page crash, as saves/restores build up!
+            // make images smaller and/or widen interval to solve?
+            // Only way I can do sve & restores outside of onload is if I dont care about dimensions of photo??
+            //
+        
+            image.onload = function(){
+
+                var orientation;
+                var dateTaken;
+
+                EXIF.getData(image, function() {
+                    var orientation = EXIF.getTag(this, "Orientation");                   
+                    var dateTaken = EXIF.getTag(this, "DateTimeOriginal");
+                    if( !(dateTaken === undefined || dateTaken == null || dateTaken.length <= 0) ) {
+                        //console.log( dateTaken );
+                        //var d1 = Date.parseExact(dateTaken, 'yyyy:MM:dd hh:mm:ss' );
+                        //console.log( d1 );
+                        //dateTaken = d1.toString('MMMM d, yyyy');
+                    }
+                    else{
+                        dateTaken = "";
+                    }
+                    
+                    var rotatedPhoto = false;
+                    
+                    // scale the image down if we have to, to X% of the canvas real estate.        
+                    var scale = 0.4;     
+                    scaledWidth = canvas.width * scale;
+                    //scaledHeight = image.height / image.width * scaledWidth;
+                    scaledHeight = image.height / image.width * scaledWidth;
+                                
+                    // Bug:rotating the angle cab somtimes cause a page crash because image load is long and call is asynchronously
+                    // I think this is causing next image to catch up and 2 x save/translate/rotations to clash, hitting a memory error?
+                    // Tip: keep images small or implement a MutEx Semaphore?
+                    context.save();  
+                    context.translate(xpos+(scaledWidth/2),ypos+0.5*(scaledHeight/2));
+
+                    switch(orientation){
+                    case 1:
+                        // i'm fine - leave me as is
+                    break;
+                    case 6:
+                        // 90° rotate right
+                        context.rotate(0.5 * Math.PI);
+                        rotatedPhoto= true;
+                        //ctx.translate(0, -canvas.height);
+                    break;
+                    default:
+                        console.log( "failed to handle orientation " + orientation + " - how do i look?");
+                        break;
+                    }   
+
+                    context.rotate(rotationAngle);
+
+                    
+
+                    // draw the photo outline
+                    window.mediaCanvas.shadowOn( true );
+                    
+                    // if photo got rotated, padding for text should go on height axis instead
+                    if( !rotatedPhoto ) {
+                        context.fillStyle = "#EEEEEE";
+                        context.fillRect( -(scaledWidth/2)-7, -(scaledHeight/2)-7, scaledWidth+14, scaledHeight+30);
+
+                        window.mediaCanvas.shadowOn( false );
+                        context.fillStyle = "#888888";                                                                                
+                        context.fillText( dateTaken, scaledWidth/2-90, scaledHeight/2-0 );
+                    }
+                    else {   
+                        context.fillStyle = "#EEEEEE";
+                        context.fillRect( -(scaledWidth/2)-7, -(scaledHeight/2)-7, scaledWidth+30, scaledHeight+14);
+
+                        window.mediaCanvas.shadowOn( false );
+                        context.fillStyle = "#888888";
+                        // looks sideways!... context.fillText( dateTaken, scaledWidth/2-3, scaledHeight/2-70 );
+                    }
 
 
-            context.shadowOffsetX = 0;  
-            context.shadowOffsetY = 0;
-            context.shadowColor = 'black';
-            context.shadowBlur = 0;
-            // now draw the photo itself
-            //context.drawImage(image, 0, 0, image.width, image.height, xpos, ypos, width, height );
-            context.drawImage(image, 0, 0, image.width, image.height, -0.5*image.width, -0.5*image.height, width, height );
+                    window.mediaCanvas.shadowOn( false );
 
-            context.restore();
-            // call the recursive method
-            //requestAnimationFrame( this.showMedia );
-        }
+                    
+                    // now draw the photo itself            
+                    context.drawImage(image, 0, 0, image.width, image.height, -(scaledWidth/2), -(scaledHeight/2), scaledWidth, scaledHeight );
+                    context.restore();
+                    
+                });
+
+                // call the recursive method
+                //requestAnimationFrame( this.showMedia );
+            }
+
+            image.src = URL.createObjectURL(http.response);
+
+            } // end status 200
+
+        }; // end http onload
+
+        http.send();
+       
 
         this.setState({elapsed: new Date() - this.props.start});
         
     },
 
 
+
+    togglePlayPause: function() {
+        
+        if( this.state.playOrPauseAction == "Play" ) {
+            this.timer = setInterval(this.showMedia, 4000);
+            this.setState({playOrPauseAction: "Pause"});
+            console.log( "(re)starting photo show")
+        } else {
+            clearInterval(this.timer);
+            this.setState({playOrPauseAction: "Play"});
+            console.log( "stopping photo show")
+        }
+
+    },
+
+
+    /**
+     * Shuffle the indexes to the media list array, or resort them if we want to move back to unshuffled mode
+     */
+    toggleShuffle: function() {
+        if( this.state.shuffleOrUnshuffleAction == "Shuffle" ) {            
+            console.log( "shuffling media")
+
+            var j, x, i;
+            for (i = this.state.indexArray.length; i; i--) {
+                j = Math.floor(Math.random() * i);
+                x = this.state.indexArray[i - 1];
+                this.state.indexArray[i - 1] = this.state.indexArray[j];
+                this.state.indexArray[j] = x;
+            }
+
+            this.setState({shuffleOrUnshuffleAction: "Unshuffle"});
+
+        } else {                         
+            // whatever indexes are still remaining, we sort them again           
+            console.log( "unshuffling media")
+            this.state.indexArray.sort(function (a, b) {  return a - b;  });
+
+            this.setState({shuffleOrUnshuffleAction: "Shuffle"});
+        }
+
+    },
+
+
+    shadowOn: function( on ) {
+        var canvas = document.getElementById( 'mediaview' );
+        var context = canvas.getContext('2d');
+
+        if( on ) {
+            context.shadowOffsetX = 2;  
+            context.shadowOffsetY = 4;
+            context.shadowColor = 'black';
+            context.shadowBlur = 8;            
+        }
+        else {
+            context.shadowOffsetX = 0;  
+            context.shadowOffsetY = 0;
+            context.shadowColor = 'black';
+            context.shadowBlur = 0;
+        }
+
+    },
+
+
+
     render: function() {
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
-        return <center><canvas id="mediaview" width={900} height={600} /></center>;
+        return <center>
+                <canvas id="mediaview" width={900} height={600} />
+                <div id='media-controls'>
+                    <div className="btn-group">
+                    <button id='play-pause-button' type="button" className='btn btn-default' title='play'
+                         onClick={this.togglePlayPause}>{this.state.playOrPauseAction}</button>
+                    <button id='shuffle-button' type="button" className='btn btn-default' title='shuffle'
+                         onClick={this.toggleShuffle}>{this.state.shuffleOrUnshuffleAction}</button>
+                    </div>                         
+                </div>
+            </center>;
     }
 
 

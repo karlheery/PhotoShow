@@ -1,9 +1,11 @@
         /* HERE's THE CONFIG FOR KH's AP */
 
         // PROD 
-        // var appId = '754651064672675';
+        //var appId = '754651064672675';
         // DEV
         var appId = '757081597762955';
+
+
         var roleArn = 'arn:aws:iam::827454618391:role/PhotoShowRole';
         var bucketName = 'khphotoshow';
         AWS.config.region = 'eu-west-1';
