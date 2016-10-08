@@ -1,12 +1,82 @@
 /** @jsx React.DOM */
 
-var album = {
-    name: "France",
-    background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
-    description: "Heery Holiday - France 2016 (July 9th-29th)",
-    basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
-    media: [ ]
-};
+var albums = [{
+        name: "France",
+        background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/france_background.jpg",
+        description: "",
+        basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
+        mediadir: "France",
+        medialist: []
+    },
+    {
+        name: "General 2016",
+        background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
+        description: "General photos from rest of 2016 (yet to be categorised)",
+        basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
+        mediadir: "2016",
+        medialist: []
+    }
+];
+
+// caches the chosen album - a hack as should be able to store in React state, but asynch javascript methods causing me trouble
+var album = {};
+
+
+/**
+ * Component to choose the show we want to display
+ * Presents the list based on above array of albums
+ */
+var ShowSelector = React.createClass({
+
+    componentDidMount: function() {
+
+    },
+
+    /** 
+     * Process click of album
+     * I should be able to pass in and read album rather than have to search array again, right?9
+     * 
+     */
+    startShow(e) {
+        console.log( "Starting " + e.target.name + " show..." );
+
+        // find the album again
+        for(var i=0; i < this.props.data.length; i++) {
+            if( this.props.data[i].name == e.target.name ) {
+                album = this.props.data[i];
+                this.setState({ album: this.props.data[i] });
+            }
+        }
+
+        var photoShow = <PhotoShow data={album} />;
+        React.render(photoShow, document.getElementById('app'));
+    },
+
+    render: function() {
+        //{this.props.data.background}
+
+        var rows = [];
+        for (var i=0; i < this.props.data.length; i++) {
+            rows.push( <button type="button" name={this.props.data[i].name} className="button button2"  block onClick={this.startShow.bind(this)}>{this.props.data[i].name}</button> );
+        }
+
+        return(
+                <div className="panel panel-default">
+                
+                    <center>
+                    <div className="page-header">
+                    <h1>Welcome to PhotoShow</h1>
+                    <small>React SPA rendering S3 images to a HTML canvas, on a serverless cloud infrastructure.</small>                    
+                    </div>
+                    <div className="panel-body">
+                        {rows}
+                    </div>
+                    </center>
+                </div>
+        );
+    }
+
+});
 
 
 var PhotoShow = React.createClass({
@@ -34,65 +104,12 @@ var PhotoShow = React.createClass({
          * Login to your application using Facebook.
          * Uses the Facebook SDK for JavaScript available here:
          * https://developers.facebook.com/docs/javascript/gettingstarted/
-         
-        window.fbAsyncInit = function () {
-            FB.init({
-                appId: appId
-            });
-            FB.login(function (response) {
-                console.log( "authenticating with facebook using ARN " + roleArn );                
-                bucket.config.credentials = new AWS.WebIdentityCredentials({
-                    ProviderId: 'graph.facebook.com',
-                    RoleArn: roleArn,
-                    WebIdentityToken: response.authResponse.accessToken
-                });
-                
-                fbUserId = response.authResponse.userID;
-                console.log( "identified FB user id " + fbUserId );                
-                  
-
-            prefix = 'facebook-' + fbUserId;
-            console.log( "getting S3 objects from " + prefix );
-
-            bucket.listObjects({
-                Prefix: prefix
-            }, function (err, data) {        
-                if (err) {
-                    msg = "failed to load images from " + prefix + ". ERROR: '" + err;
-                    console.error( msg );
-                    
-                    var messageArea = document.getElementById('messageArea');
-                    messageArea.innerHTML = msg;                       
-        
-                } else {                    
-                    data.Contents.forEach(function (obj) {
-
-                        // ignore directory
-                        if( obj.Key.endsWith("JPG") || obj.Key.endsWith("jpg") || obj.Key.endsWith("jpeg") || 
-                            obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {                        
-                            console.log( "adding media file "+ obj.Key + " to list of " + this.album.media.length  );
-                            this.album.media.push(obj.Key);
-                        }                        
-                    });                    
-                }
-            });  
-
-
-            });
-        };
-        */
-
-
-        /*!
-         * Login to your application using Facebook.
-         * Uses the Facebook SDK for JavaScript available here:
-         * https://developers.facebook.com/docs/javascript/gettingstarted/
          */
         window.fbAsyncInit = function () {
         FB.init({
                 appId: appId
         });
-
+        
         FB.getLoginStatus(function(response) {
 
             if (response.status === 'connected') {
@@ -103,7 +120,7 @@ var PhotoShow = React.createClass({
                 var accessToken = response.authResponse.accessToken;
 
                 var messageArea = document.getElementById('messageArea');
-                messageArea.innerHTML = "Welcome " + fbUserId;  
+                //messageArea.innerHTML = "Welcome " + fbUserId;  
 
                 console.log( "authenticating with facebook using ARN " + roleArn );                
                 bucket.config.credentials = new AWS.WebIdentityCredentials({
@@ -115,8 +132,10 @@ var PhotoShow = React.createClass({
                 fbUserId = response.authResponse.userID;
                 console.log( "identified FB user id " + fbUserId );                            
 
-                prefix = 'facebook-' + fbUserId;
-                console.log( "getting S3 objects from " + prefix );
+                // FB specific folder access
+                //prefix = 'facebook-' + fbUserId;  
+                prefix = 'media' // + album.mediadir;  // dont add a '/' at end it breaks it                                
+                console.log( "getting S3 objects from " + prefix + "/" + album.mediadir );
 
                 bucket.listObjects({
                     Prefix: prefix
@@ -133,9 +152,14 @@ var PhotoShow = React.createClass({
 
                                 // ignore directory
                                 if( obj.Key.endsWith("JPG") || obj.Key.endsWith("jpg") || obj.Key.endsWith("jpeg") || 
-                                    obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {                        
-                                    console.log( "adding media file "+ obj.Key + " to list of " + this.album.media.length  );
-                                    this.album.media.push(obj.Key);
+                                    obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {
+
+                                        // check its from our desired folder
+                                        // ANOTHER HACK!
+                                        if( obj.Key.includes( album.mediadir ) ) {                  
+                                            console.log( "adding media file "+ obj.Key + " to list of " + this.album.medialist.length  );
+                                            this.album.medialist.push(obj.Key);
+                                        }
                                 }                        
                             });                    
                         }
@@ -175,7 +199,8 @@ var PhotoShow = React.createClass({
             <MediaCanvas background={this.props.data.background}
                 description={this.props.data.description} 
                 basedir={this.props.data.basedir} 
-                medialist={this.props.data.media} />
+                mediadir={this.props.data.mediadir}
+                medialist={this.props.data.medialist} />
             </div> 
         );
     }
@@ -501,7 +526,7 @@ var MediaCanvas = React.createClass({
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
         return <center>
-                <canvas id="mediaview" width={900} height={600} />
+                <canvas id="mediaview" width={900} height={510} />
                 <div id='media-controls'>
                     <div className="btn-group">
                     <button id='play-pause-button' type="button" className='btn btn-default' title='play'
@@ -518,6 +543,6 @@ var MediaCanvas = React.createClass({
 
 
 React.render( 
-    <PhotoShow data={album} />, document.getElementById('app')
+    <ShowSelector data={albums} />, document.getElementById('app')    
 );
     
