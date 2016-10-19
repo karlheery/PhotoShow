@@ -1,5 +1,6 @@
 /** @jsx React.DOM */
 
+/** These are defaults for testing. Real list is queried from Dynamo DB through API Gateway & Lambda */
 var albums = [{
         name: "France",
         background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/france_background.jpg",
@@ -18,6 +19,7 @@ var albums = [{
     }
 ];
 
+
 // caches the chosen album - a hack as should be able to store in React state, but asynch javascript methods causing me trouble
 var album = {};
 
@@ -28,9 +30,56 @@ var album = {};
  */
 var ShowSelector = React.createClass({
 
+     
+    getInitialState: function() {
+        return { albums: this.props.data };
+    },
+
+
     componentDidMount: function() {
 
+        window.showSelector = this;
+
+        // The URL for this is "https://x4jqp9pcgl.execute-api.eu-west-1.amazonaws.com/prod";
+        var apigClient = apigClientFactory.newClient();
+        var params = {
+            //This is where any header, path, or querystring request params go. The key is the parameter named as defined in the API
+            //param0: '',
+            //param1: ''
+        };
+        var body = {
+            //This is where you define the body of the request
+        };
+        var additionalParams = {
+            //If there are any unmodeled query parameters or headers that need to be sent with the request you can add them here
+            headers: {
+                //param0: '',
+                //param1: ''
+            },
+            queryParams: {
+                //param0: '',
+                //param1: ''
+            }
+        };
+
+        
+        // Each API call returns a promise, that invokes either a success and failure callback
+        apigClient.rootGet(params, body, additionalParams)
+            .then(function(result){
+
+                console.log( "called getAlbums API: " + result.data );                
+
+                try{
+                // now save the new state of albums as a result of API call
+                window.showSelector.setState({ albums: result.data });
+
+                }
+                catch (e) { console.error( "problem "  + e); }
+
+            });
+                        
     },
+
 
     /** 
      * Process click of album
@@ -52,28 +101,60 @@ var ShowSelector = React.createClass({
         React.render(photoShow, document.getElementById('app'));
     },
 
-    render: function() {
-        //{this.props.data.background}
 
-        var rows = [];
-        for (var i=0; i < this.props.data.length; i++) {
-            rows.push( <button type="button" name={this.props.data[i].name} className="button button2"  block onClick={this.startShow.bind(this)}>{this.props.data[i].name}</button> );
+
+    /**
+     * Display the list of albums available for viewing, as a series of buttons
+     * 
+     */
+    render: function() {
+
+        var albumArray = this.state.albums;
+
+        // if nothing to show...
+        if( !albumArray.length > 0 ) {
+                   
+            return(
+                        <div className="panel panel-default">
+                        
+                            <center>
+                            <div className="page-header">
+                            <h1>Welcome to PhotoShow</h1>
+                            <small>React SPA rendering S3 images to a HTML canvas, on a serverless cloud infrastructure.</small>                    
+                            </div>
+                            <div>
+                                <font color='red'>Oops! Can't seem to find any albums right now! Karl - sort it out man!</font>
+                            </div>
+                            </center>
+                        </div>
+            );
         }
 
+
+        console.log( "displaying " + albumArray.length + " album tiles" );
+
+        var rows = [];
+        for (var i=0; i < albumArray.length; i++) {                    
+            rows.push( <button type="button" name={albumArray[i].name} className="button button2"  block onClick={this.startShow}>{albumArray[i].name}</button> );                    
+        }
+
+        console.log( "displaying albums " + rows );
+
         return(
-                <div className="panel panel-default">
-                
-                    <center>
-                    <div className="page-header">
+            <div className="panel panel-default">
+                        
+            <center>
+                <div className="page-header">
                     <h1>Welcome to PhotoShow</h1>
                     <small>React SPA rendering S3 images to a HTML canvas, on a serverless cloud infrastructure.</small>                    
-                    </div>
-                    <div className="panel-body">
-                        {rows}
-                    </div>
-                    </center>
                 </div>
+                <div className="panel-body">
+                    {rows}
+                </div>
+            </center>
+            </div>
         );
+
     }
 
 });
