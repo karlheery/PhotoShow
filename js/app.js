@@ -1,22 +1,26 @@
 /** @jsx React.DOM */
 
 /** These are defaults for testing. Real list is queried from Dynamo DB through API Gateway & Lambda */
-var albums = [{
-        name: "France",
+var albums = [
+/*        {
+    name: "France",
         background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/france_background.jpg",
         description: "",
-        basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
-        mediadir: "France",
+        bucket_url: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
+        basedir: "media",
+        name_contains: "France",
         medialist: []
     },
     {
         name: "General 2016",
         background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
         description: "General photos from rest of 2016 (yet to be categorised)",
-        basedir: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
-        mediadir: "2016",
+        bucket_url: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
+        basedir: "media",
+        name_contains: "2016",
         medialist: []
     }
+    */
 ];
 
 
@@ -70,9 +74,8 @@ var ShowSelector = React.createClass({
                 console.log( "called getAlbums API: " + result.data );                
 
                 try{
-                // now save the new state of albums as a result of API call
-                window.showSelector.setState({ albums: result.data });
-
+                    // now save the new state of albums as a result of API call
+                    window.showSelector.setState({ albums: result.data });
                 }
                 catch (e) { console.error( "problem "  + e); }
 
@@ -90,10 +93,10 @@ var ShowSelector = React.createClass({
         console.log( "Starting " + e.target.name + " show..." );
 
         // find the album again
-        for(var i=0; i < this.props.data.length; i++) {
-            if( this.props.data[i].name == e.target.name ) {
-                album = this.props.data[i];
-                this.setState({ album: this.props.data[i] });
+        for(var i=0; i < this.state.albums.length; i++) {
+            if( this.state.albums[i].name == e.target.name ) {
+                album = this.state.albums[i];
+                this.setState({ album: this.state.albums[i] });
             }
         }
 
@@ -180,6 +183,7 @@ var PhotoShow = React.createClass({
         });
         var fbUserId;
       
+        window.photoShow = this;
       
         /*!
          * Login to your application using Facebook.
@@ -213,38 +217,10 @@ var PhotoShow = React.createClass({
                 fbUserId = response.authResponse.userID;
                 console.log( "identified FB user id " + fbUserId );                            
 
-                // FB specific folder access
-                //prefix = 'facebook-' + fbUserId;  
-                prefix = 'media' // + album.mediadir;  // dont add a '/' at end it breaks it                                
-                console.log( "getting S3 objects from " + prefix + "/" + album.mediadir );
+                // if we want FB specific folder access do it here
+                console.log( "getting S3 objects from " + album.basedir + " that contains " + album.name_contains );
 
-                bucket.listObjects({
-                    Prefix: prefix
-                    }, function (err, data) {        
-                        if (err) {
-                            msg = "failed to load images from " + prefix + ". ERROR: '" + err;
-                            console.error( msg );
-                            
-                            var messageArea = document.getElementById('messageArea');
-                            messageArea.innerHTML = msg;                       
-                
-                        } else {                    
-                            data.Contents.forEach(function (obj) {
-
-                                // ignore directory
-                                if( obj.Key.endsWith("JPG") || obj.Key.endsWith("jpg") || obj.Key.endsWith("jpeg") || 
-                                    obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {
-
-                                        // check its from our desired folder
-                                        // ANOTHER HACK!
-                                        if( obj.Key.includes( album.mediadir ) ) {                  
-                                            console.log( "adding media file "+ obj.Key + " to list of " + this.album.medialist.length  );
-                                            this.album.medialist.push(obj.Key);
-                                        }
-                                }                        
-                            });                    
-                        }
-                }); 
+                window.photoShow.loadFilesFromS3( bucket, album, 0, null );
 
             } else {
                 // the user is logged in to Facebook, but has not authenticated your app i.e. response.status === 'not_authorized'
@@ -274,13 +250,73 @@ var PhotoShow = React.createClass({
     },
 
 
+
+
+    /**
+     * Seek out files of interest from our S3 bucket and store in album's medialist
+     */
+    loadFilesFromS3: function( bucket , album, index, marker ) {
+
+        // parameters for the search
+        var params = {
+            Prefix: album.basedir
+        };
+
+        // pick up where we left off
+        if( marker ) {
+            console.log( "listing next set of objects starting from " + index + " (marker: " + marker + ")" );
+            params.Marker = marker;
+        }
+
+        bucket.listObjects( params, function (err, data) {        
+            if (err) {
+                msg = "failed to load images from " + prefix + ". ERROR: '" + err;
+                console.error( msg );
+                            
+                var messageArea = document.getElementById('messageArea');
+                messageArea.innerHTML = msg;                       
+            } else {    
+
+                data.Contents.forEach(function (obj) {
+
+                    index += 1;
+
+                    //console.log( "object " + index + " - considering " + obj.Key  );
+
+                    // ignore directory
+                    if( obj.Key.endsWith("JPG") || obj.Key.endsWith("jpg") || obj.Key.endsWith("jpeg") || 
+                        obj.Key.endsWith("png") || obj.Key.endsWith("bmp") ) {
+
+                        // check its from our desired folder
+                        // ANOTHER HACK!
+                        if( obj.Key.includes( album.name_contains ) ) {                  
+                            console.log( "adding media file "+ obj.Key + " to list of " + this.album.medialist.length  );
+                            this.album.medialist.push(obj.Key);
+                        }
+                    }                        
+                }); 
+                
+                // are we paging?
+                if (data.IsTruncated) {
+                    var length = data.Contents.length;
+                    var marker = data.Contents[length-1].Key;
+                    // recursion!
+                    window.photoShow.loadFilesFromS3( bucket, album, index, marker );
+                }
+            }
+        }); // end of function
+    },
+
+
+
     render: function() {
         return ( 
             <div>                        
             <MediaCanvas background={this.props.data.background}
-                description={this.props.data.description} 
+                description={this.props.data.description}
+                bucket_url={this.props.data.bucket_url} 
                 basedir={this.props.data.basedir} 
-                mediadir={this.props.data.mediadir}
+                name_contains={this.props.data.name_contains}
                 medialist={this.props.data.medialist} />
             </div> 
         );
@@ -390,7 +426,7 @@ var MediaCanvas = React.createClass({
 	    var index = this.state.indexArray.shift();
 
         // otherwise show the next image...
-        mediafile =  this.props.basedir + this.props.medialist[index];
+        mediafile =  this.props.bucket_url + this.props.medialist[index];
         console.log( "showing image " + index + " of " + this.props.medialist.length + ": " + mediafile + "(" + this.state.indexArray.length + " left)" );
 
         // max X coord is 40% across the screen given how we scale images to 60% of screen
