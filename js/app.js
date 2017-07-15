@@ -2,25 +2,15 @@
 
 /** These are defaults for testing. Real list is queried from Dynamo DB through API Gateway & Lambda */
 var albums = [
-/*        {
-    name: "France",
-        background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/france_background.jpg",
-        description: "",
-        bucket_url: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
-        basedir: "media",
-        name_contains: "France",
-        medialist: []
-    },
     {
-        name: "General 2016",
-        background: "https://s3-eu-west-1.amazonaws.com/khphotoshow/backgrounds/black_table_background.jpg",
-        description: "General photos from rest of 2016 (yet to be categorised)",
-        bucket_url: "https://s3-eu-west-1.amazonaws.com/khphotoshow/",
-        basedir: "media",
-        name_contains: "2016",
-        medialist: []
+        name: "testAlbum",
+            background: "http://localhost:8080/PhotoShow/test_images/test_background.jpg",
+            description: "Welcome to your test album",
+            bucket_url: "http://localhost:8080/PhotoShow/test_images/media/",
+            basedir: "",
+            name_contains: "",
+            medialist: [ "test1.jpg", "test2.jpg", "test3.jpg" ]
     }
-    */
 ];
 
 
@@ -126,7 +116,13 @@ var ShowSelector = React.createClass({
                             <small>React SPA rendering S3 images to a HTML canvas, on a serverless cloud infrastructure.</small>                    
                             </div>
                             <div>
-                                <font color='red'>Oops! Can't seem to find any albums right now! Karl - sort it out man!</font>
+                                <font color='red'>
+                                Oops! Can't seem to find any albums right now! Karl - sort it out man!
+                                In the meantime, here's a dummy one:
+                                </font>
+                                
+                                <button type="button" name='testAlbum#' className="button button2"  block onClick={this.startShow}>testAlbum</button>
+
                             </div>
                             </center>
                         </div>
@@ -144,7 +140,8 @@ var ShowSelector = React.createClass({
         console.log( "displaying albums " + rows );
 
         return(
-            <div className="panel panel-default">
+            test
+			<div className="panel panel-default">
                         
             <center>
                 <div className="page-header">
@@ -222,6 +219,14 @@ var PhotoShow = React.createClass({
 
                 window.photoShow.loadFilesFromS3( bucket, album, 0, null );
 
+                // hack in snow for now 
+                if( album.name == "Christmas" ) {
+                    console.log("starting show...");
+                    $(document).ready( function(){ 
+                        $.fn.snow(); 
+                    }); 
+                }
+
             } else {
                 // the user is logged in to Facebook, but has not authenticated your app i.e. response.status === 'not_authorized'
                 // or the user isn't logged in to Facebook.
@@ -266,6 +271,11 @@ var PhotoShow = React.createClass({
         if( marker ) {
             console.log( "listing next set of objects starting from " + index + " (marker: " + marker + ")" );
             params.Marker = marker;
+        }
+
+        // hardcoded test album
+        if( album.name == "testAlbum" ) {
+            return;
         }
 
         bucket.listObjects( params, function (err, data) {        
@@ -336,7 +346,7 @@ var MediaCanvas = React.createClass({
 
       
     getInitialState: function() {
-        return { index: -1, playOrPauseAction: "Pause", shuffleOrUnshuffleAction: "Shuffle" };   // for indexing the photos
+        return { index: -1, playOrPauseAction: "Pause", shuffleOrUnshuffleAction: "Shuffle", quadrant: 1 };   // for indexing the photos
     },
 
 
@@ -427,14 +437,35 @@ var MediaCanvas = React.createClass({
 
         // otherwise show the next image...
         mediafile =  this.props.bucket_url + this.props.medialist[index];
-        console.log( "showing image " + index + " of " + this.props.medialist.length + ": " + mediafile + "(" + this.state.indexArray.length + " left)" );
+        console.log( "showing image " + index + " of " + this.props.medialist.length + ": " + mediafile + "(" + this.state.indexArray.length + " left) in quadrant " +  this.state.quadrant );
 
-        // max X coord is 40% across the screen given how we scale images to 60% of screen
-        var maxX = Math.floor( canvas.width * 0.6 );
-        var maxY = Math.floor( canvas.height * 0.6 );
-        var xpos = Math.floor((Math.random() * maxX) + 1); 
-        var ypos = Math.floor((Math.random() * maxY) + 1);
+        // break screen into 4 quadrants so not completely random placement
+        //
+        var maxX = Math.floor( canvas.width * 0.1 );;
+        var maxY = Math.floor( canvas.height * 0.1 );
 
+        var xpos = 0;
+        var ypos = 0;
+
+        if( this.state.quadrant == 1 ) {
+            xpos = Math.floor((Math.random() * maxX) + 1); 
+            ypos = 50 + Math.floor((Math.random() * maxY) + 1);
+        }
+        else if( this.state.quadrant == 2 ) {
+            xpos = canvas.width * 0.5 + Math.floor((Math.random() * maxX) + 1); 
+            ypos = 50 + Math.floor((Math.random() * maxY) + 1);
+        }
+        else if( this.state.quadrant == 3 ) {
+            xpos = Math.floor((Math.random() * maxX) + 1); 
+            ypos = canvas.height * 0.5 + Math.floor((Math.random() * maxY) + 1);
+        }
+        else {
+            xpos = canvas.width * 0.5 + Math.floor((Math.random() * maxX) + 1); 
+            ypos = canvas.height * 0.5 + Math.floor((Math.random() * maxY) + 1);
+            this.setState({quadrant: 0});    
+        }
+
+        this.setState({quadrant: this.state.quadrant + 1});    
 
         // we'll rotate up to 5 deg max, and flip it half the time to negative
         var rotationAngle = Math.floor((Math.random() * 5) + 0) * Math.PI / 180;
@@ -459,6 +490,7 @@ var MediaCanvas = React.createClass({
 
             image = new Image();
             image.src = mediafile;
+            //image.src = "http://localhost:8080/PhotoShow/test_images/media/Hugo.mp4";
             messageArea.innerHTML = "" //<img src='" + mediafile + "' width=50 height=50/>";
             var scaledWidth = 600;
             var scaledHeight = 400;
@@ -552,6 +584,11 @@ var MediaCanvas = React.createClass({
                     
                     // now draw the photo itself            
                     context.drawImage(image, 0, 0, image.width, image.height, -(scaledWidth/2), -(scaledHeight/2), scaledWidth, scaledHeight );
+
+                    // src="http://localhost:8080/PhotoShow/test_images/media/Hugo.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'/>
+                    //context.drawImage("hugo", 0, 0, image.width, image.height, -(scaledWidth/2), -(scaledHeight/2), scaledWidth, scaledHeight );
+
+                    
                     context.restore();
                     
                 });
@@ -643,7 +680,7 @@ var MediaCanvas = React.createClass({
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
         return <center>
-                <canvas id="mediaview" width={900} height={510} />
+                <canvas id="mediaview" width={900} height={600} />
                 <div id='media-controls'>
                     <div className="btn-group">
                     <button id='play-pause-button' type="button" className='btn btn-default' title='play'
@@ -652,10 +689,16 @@ var MediaCanvas = React.createClass({
                          onClick={this.toggleShuffle}>{this.state.shuffleOrUnshuffleAction}</button>
                     </div>                         
                 </div>
+               
             </center>;
     }
 
+/** 
+ *  <video id="testVideo" autoplay controls preload="auto">
+                    <source src="http://localhost:8080/PhotoShow/test_images/media/Hugo.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'/>
+                </video>
 
+ */
 });
 
 
