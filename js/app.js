@@ -35,20 +35,23 @@ var ShowSelector = React.createClass({
         window.showSelector = this;
 
         // The URL for this is "https://x4jqp9pcgl.execute-api.eu-west-1.amazonaws.com/prod";
-        var apigClient = apigClientFactory.newClient();
-        var params = {
-            //This is where any header, path, or querystring request params go. The key is the parameter named as defined in the API
-            //param0: '',
-            //param1: ''
+        var apigClient = apigClientFactory.newClient({
+			apiKey:  'PhotoShowWebApp'  // '39g6ekzgwh'
+		});
+
+        var params = {			
+            //This is where any header, path, or querystring request params go. The key is the parameter named as defined in the API            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
+            }
         };
         var body = {
             //This is where you define the body of the request
         };
         var additionalParams = {
-            //If there are any unmodeled query parameters or headers that need to be sent with the request you can add them here
-            headers: {
-                //param0: '',
-                //param1: ''
+            //If there are any unmodeled query parameters or headers that need to be sent with the request you can add them here            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
             },
             queryParams: {
                 //param0: '',
@@ -56,9 +59,15 @@ var ShowSelector = React.createClass({
             }
         };
 
-        
+        var pathTemplate = '/getAlbums';
+		var method = 'GET';
+		
         // Each API call returns a promise, that invokes either a success and failure callback
-        apigClient.rootGet(params, body, additionalParams)
+		
+		// THINK ADDING APIs to Usage Plan with API key broke stuff? ...but removed it and still broke. Must be clearing the cache that broke it since prod one still works!
+		
+		// NOT WORKING BECAUSE OF URL FORMED TO getAlbums... apigClient.invokeApi(method, pathTemplate, params, body, additionalParams) 		
+		apigClient.rootGet(params, body, additionalParams)		        
             .then(function(result){
 
                 console.log( "called getAlbums API: " + result.data );                
@@ -79,7 +88,7 @@ var ShowSelector = React.createClass({
      * I should be able to pass in and read album rather than have to search array again, right?9
      * 
      */
-    startShow(e) {
+    startShow: function(e) {
         console.log( "Starting " + e.target.name + " show..." );
 
         // find the album again
@@ -107,9 +116,8 @@ var ShowSelector = React.createClass({
         // if nothing to show...
         if( !albumArray.length > 0 ) {
                    
-            return(
-                        <div className="panel panel-default">
-                        
+            return(	<div> HELLO
+                        <div className="panel panel-default">                        
                             <center>
                             <div className="page-header">
                             <h1>Welcome to PhotoShow</h1>
@@ -126,6 +134,7 @@ var ShowSelector = React.createClass({
                             </div>
                             </center>
                         </div>
+					</div>
             );
         }
 
@@ -139,10 +148,8 @@ var ShowSelector = React.createClass({
 
         console.log( "displaying albums " + rows );
 
-        return(
-            test
+        return( <div> HELLO		
 			<div className="panel panel-default">
-                        
             <center>
                 <div className="page-header">
                     <h1>Welcome to PhotoShow</h1>
@@ -152,7 +159,7 @@ var ShowSelector = React.createClass({
                     {rows}
                 </div>
             </center>
-            </div>
+            </div> </div>
         );
 
     }
@@ -490,6 +497,7 @@ var MediaCanvas = React.createClass({
 
             image = new Image();
             image.src = mediafile;
+			
             //image.src = "http://localhost:8080/PhotoShow/test_images/media/Hugo.mp4";
             messageArea.innerHTML = "" //<img src='" + mediafile + "' width=50 height=50/>";
             var scaledWidth = 600;
@@ -509,7 +517,7 @@ var MediaCanvas = React.createClass({
 
                 var orientation;
                 var dateTaken;
-
+								
                 EXIF.getData(image, function() {
                     var orientation = EXIF.getTag(this, "Orientation");                   
                     var dateTaken = EXIF.getTag(this, "DateTimeOriginal");
@@ -532,11 +540,19 @@ var MediaCanvas = React.createClass({
                     //scaledHeight = image.height / image.width * scaledWidth;
                     scaledHeight = image.height / image.width * scaledWidth;
                                 
-                    // Bug:rotating the angle cab somtimes cause a page crash because image load is long and call is asynchronously
+                    // Bug:rotating the angle can sometimes cause a page crash because image load is long and call is asynchronously
                     // I think this is causing next image to catch up and 2 x save/translate/rotations to clash, hitting a memory error?
                     // Tip: keep images small or implement a MutEx Semaphore?
                     context.save();  
-                    context.translate(xpos+(scaledWidth/2),ypos+0.5*(scaledHeight/2));
+					
+					// save position and shape (roughly! i.e. pre-rotation) to help click detection for actions
+					var finalXPos = xpos+(scaledWidth/2); 
+					var finalYPos = ypos+0.5*(scaledHeight/2);
+					
+					// @TODO: need comment from database still!
+					window.mediaCanvas.saveImagePosition( mediafile, finalXPos, finalYPos, scaledWidth, scaledHeight, "" );
+					
+                    context.translate(finalXPos, finalYPos);
 
                     switch(orientation){
                     case 1:
@@ -617,16 +633,21 @@ var MediaCanvas = React.createClass({
         if( this.state.playOrPauseAction == "Play" ) {
             this.timer = setInterval(this.showMedia, 4000);
             this.setState({playOrPauseAction: "Pause"});
-            console.log( "(re)starting photo show")
+            console.log( "(re)starting photo show");
         } else {
-            clearInterval(this.timer);
-            this.setState({playOrPauseAction: "Play"});
-            console.log( "stopping photo show")
+            window.mediaCanvas.pauseShow();
         }
 
     },
 
+	
+	pauseShow: function() {
+		clearInterval(this.timer);
+        this.setState({playOrPauseAction: "Play"});
+        console.log( "stopping photo show")
+	},
 
+	
     /**
      * Shuffle the indexes to the media list array, or resort them if we want to move back to unshuffled mode
      */
@@ -675,19 +696,139 @@ var MediaCanvas = React.createClass({
     },
 
 
+	
+	/** 
+	 * As an image is displayed save the image file and location details for later retrieval on a user event (e.g. mouse click)
+	 */
+	saveImagePosition: function( mediaFile, finalXPos, finalYPos, scaledWidth, scaledHeight, cmt ) {
+					
+        // if we havent started tracking images yet, start doing so now 
+        if( !this.state.imageLocations || this.state.imageLocations.length <= 0 ) {
+            console.log( "creating image location cache"  );
+            
+            imageLocations = new Array();
+            this.setState({ imageLocations: imageLocations });
+		}
+		
+		// if we exceed 4 items in cache, we'll prune the oldest before adding the next
+		// @TODO: this only works because we've hardcoded showing images in 4 sections. 
+		// So there is bad coupling here!
+		if( this.state.imageLocations.length > 4 ) {
+			this.state.imageLocations.shift();
+		}
+					
+		// create and add the image details to the array		
+		this.state.imageLocations.push( { imageDisplayed:mediaFile, X:finalXPos, Y:finalYPos, width:scaledWidth, height:scaledHeight, comment:cmt } );
+		
+		
+	},
+	
+	
+	/** 
+	 * get an image corresponding to given location
+	 */
+	getImageAtPosition: function( X, Y ) {		 		 	
+		
+		for(var i=0; i < this.state.imageLocations.length; i++) {
+			
+			canvasImage = this.state.imageLocations[i];
+						
+			// this is crude but given limited rotation and the fact we dont allow clicking of media hiding behind other media, is good enough...?
+			//
+			if( canvasImage.X < X && (canvasImage.X + canvasImage.width) > X &&
+				canvasImage.Y < Y && (canvasImage.Y + canvasImage.height) > Y ) {
+			
+				console.log( 'User hit: (' + X + ', ' + Y + ') which is on ' + canvasImage.imageDisplayed );			
+						
+                return canvasImage;
+			}
+			
+			// or return silently - nothing clicked			
+        }
 
+	},
+	
+	
+		
+	// ----------- HANDLE INTERACTIONS -------------------
+		
+	handleClick: function(e) {
+		console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );		
+	},
+	
+
+	handleDoubleClick: function(e) {
+		console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );
+		clickedImage = this.getImageAtPosition( e.clientX, e.clientY );
+		
+		if( clickedImage ) {
+			this.pauseShow();
+			console.log('process user click of ' + clickedImage.imageDisplayed );
+						
+			var currentComment = clickedImage.comment;
+			//clickedImage.comment = prompt("Enter comment", currentComment );
+			
+			this.showSidebar( clickedImage );
+			
+			console.log('saving comment [' + clickedImage.comment + '] against image ' + clickedImage.imageDisplayed );
+			
+			this.togglePlayPause();
+		}
+							
+	},
+	
+
+	refCallback: function(item) {
+		if (item) {
+			item.getDOMNode().ondblclick = this.handleDoubleClick;
+		}
+	},
+  
+  
+	/** 
+	 * get an image corresponding to given location
+	 */
+	showSidebar: function( clickedImage ) {		 		 	
+		document.getElementById("mySidenav").style.width = "250px";
+		document.getElementById("main").style.marginLeft = "250px";
+		document.body.style.backgroundColor = "rgba(0,0,0,0.4)";
+	},
+	
+	
+	closeSidebar: function() {
+		//document.getElementById("mySidenav").style.width = "0";
+		//document.getElementById("main").style.marginLeft= "0";
+		//document.body.style.backgroundColor = "white";
+	},
+	
+	
+	// ------------- END HANDLE INTERACTIONS-------------
+	
+	
     render: function() {
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
         return <center>
-                <canvas id="mediaview" width={900} height={600} />
+				
+				<div id="mySidenav" class="sidenav">
+				  <a href="javascript:void(0)" class="closebtn" onclick={this.closeSidebar()}>&times;</a>
+				  <a href="#">About</a>
+				  <a href="#">Services</a>
+				  <a href="#">Clients</a>
+				  <a href="#">Contact</a>
+				</div>
+
+				<div id="main">
+					<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ref={this.refCallback} />
+				</div>
+				
                 <div id='media-controls'>
                     <div className="btn-group">
                     <button id='play-pause-button' type="button" className='btn btn-default' title='play'
                          onClick={this.togglePlayPause}>{this.state.playOrPauseAction}</button>
                     <button id='shuffle-button' type="button" className='btn btn-default' title='shuffle'
                          onClick={this.toggleShuffle}>{this.state.shuffleOrUnshuffleAction}</button>
-                    </div>                         
+                    </div>      										
                 </div>
                
             </center>;
@@ -696,13 +837,13 @@ var MediaCanvas = React.createClass({
 /** 
  *  <video id="testVideo" autoplay controls preload="auto">
                     <source src="http://localhost:8080/PhotoShow/test_images/media/Hugo.mp4" type='video/mp4; codecs="avc1.42E01E, mp4a.40.2"'/>
-                </video>
-
+                </video>				
  */
 });
-
 
 React.render( 
     <ShowSelector data={albums} />, document.getElementById('app')    
 );
+
+
     
