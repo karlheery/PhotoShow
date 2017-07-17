@@ -96,8 +96,27 @@ apigClientFactory.newClient = function (config) {
             body: body
         };
         
-        
+        console.log( "request is : " + rootGetRequest );
+		
         return apiGatewayClient.makeRequest(rootGetRequest, authType, additionalParams, config.apiKey);
+    };
+	
+	apigClient.invokeApi = function (method, pathTemplate, params, body, additionalParams) {
+        if(additionalParams === undefined) { additionalParams = {}; }
+        
+        apiGateway.core.utils.assertParametersDefined(params, [], ['body']);
+        
+        var methodRequest = {
+            verb: method.toUpperCase(),
+            path: pathComponent + pathTemplate,
+            headers: apiGateway.core.utils.parseParametersToObject(params, []),
+            queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
+            body: body
+        };
+        
+        console.log( "request is : " + methodRequest );
+		
+        return apiGatewayClient.makeRequest(methodRequest, authType, additionalParams, config.apiKey);
     };
     
 
