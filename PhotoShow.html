@@ -6,14 +6,14 @@
     <title>PhotoShow</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>    
     <link href="thirdparty/bootstrap-3.3.7-dist/css/bootstrap.css" rel="stylesheet"/>
-    <link href="css/styles.css" rel="stylesheet"/>
+    <link href="css/styles.css" rel="stylesheet"/>	
 </head>
 <body>    
-
-	 
+		 
+	<div id="clickedImage"></div>			
     <div id="messageArea"></div>
     <div id="app"></div>
- 
+	
     <script src="thirdparty/jquery.js"></script>
     <script src="thirdparty/react.js"></script>
     <script src="thirdparty/JSXTransformer.js"></script>
@@ -24,7 +24,8 @@
     <script src="thirdparty/jquery.snow.min.1.0.js"></script>
 
     <!-- API Gateway dependencies -->
-    <script type="text/javascript" src="thirdparty/axios/dist/axios.standalone.js"></script>
+    <script type="text/javascript" src="thirdparty/es6-promise-polyfill/promise.min.js"></script>
+	<script type="text/javascript" src="thirdparty/axios/dist/axios.standalone.js"></script>
     <script type="text/javascript" src="thirdparty/CryptoJS/rollups/hmac-sha256.js"></script>
     <script type="text/javascript" src="thirdparty/CryptoJS/rollups/sha256.js"></script>
     <script type="text/javascript" src="thirdparty/CryptoJS/components/hmac.js"></script>

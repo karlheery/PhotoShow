@@ -62,12 +62,14 @@ var ShowSelector = React.createClass({
         var pathTemplate = '/getAlbums';
 		var method = 'GET';
 		
+		console.log( "retrieving available albums" );    
+		
         // Each API call returns a promise, that invokes either a success and failure callback
 		
 		// THINK ADDING APIs to Usage Plan with API key broke stuff? ...but removed it and still broke. Must be clearing the cache that broke it since prod one still works!
 		
 		// NOT WORKING BECAUSE OF URL FORMED TO getAlbums... apigClient.invokeApi(method, pathTemplate, params, body, additionalParams) 		
-		apigClient.rootGet(params, body, additionalParams)		        
+		/**apigClient.rootGet(params, body, additionalParams)		        
             .then(function(result){
 
                 console.log( "called getAlbums API: " + result.data );                
@@ -78,7 +80,7 @@ var ShowSelector = React.createClass({
                 }
                 catch (e) { console.error( "problem "  + e); }
 
-            });
+            });*/
                         
     },
 
@@ -116,8 +118,7 @@ var ShowSelector = React.createClass({
         // if nothing to show...
         if( !albumArray.length > 0 ) {
                    
-            return(	<div> HELLO
-                        <div className="panel panel-default">                        
+            return(		<div className="panel panel-default">                        
                             <center>
                             <div className="page-header">
                             <h1>Welcome to PhotoShow</h1>
@@ -133,8 +134,7 @@ var ShowSelector = React.createClass({
 
                             </div>
                             </center>
-                        </div>
-					</div>
+                        </div>				
             );
         }
 
@@ -148,7 +148,7 @@ var ShowSelector = React.createClass({
 
         console.log( "displaying albums " + rows );
 
-        return( <div> HELLO		
+        return( 
 			<div className="panel panel-default">
             <center>
                 <div className="page-header">
@@ -159,7 +159,7 @@ var ShowSelector = React.createClass({
                     {rows}
                 </div>
             </center>
-            </div> </div>
+            </div>
         );
 
     }
@@ -196,7 +196,8 @@ var PhotoShow = React.createClass({
          */
         window.fbAsyncInit = function () {
         FB.init({
-                appId: appId
+                appId: appId,
+				cookie  : true
         });
         
         FB.getLoginStatus(function(response) {
@@ -226,7 +227,7 @@ var PhotoShow = React.createClass({
 
                 window.photoShow.loadFilesFromS3( bucket, album, 0, null );
 
-                // hack in snow for now 
+                // @TODO hack in snow for now 
                 if( album.name == "Christmas" ) {
                     console.log("starting show...");
                     $(document).ready( function(){ 
@@ -237,11 +238,13 @@ var PhotoShow = React.createClass({
             } else {
                 // the user is logged in to Facebook, but has not authenticated your app i.e. response.status === 'not_authorized'
                 // or the user isn't logged in to Facebook.
-
-                window.location.href="index.html";
+				console.log( "not-authenticated? redirecting back to home page: " + response.status );
+				alert("Not-authenticated: " + response.status);				
+								
+				window.location.href="index.html";
                 //FB.login();       // popup approach
             }
-        });
+        }, true);
         };
 
 
@@ -336,6 +339,70 @@ var PhotoShow = React.createClass({
                 name_contains={this.props.data.name_contains}
                 medialist={this.props.data.medialist} />
             </div> 
+        );
+    }
+
+});
+
+
+
+/**
+ * Handles rendering of image details - to allow saving comments, excluding from album, adding to other albums etc.
+ */
+var ClickedImageDetails = React.createClass({
+      
+    getInitialState: function() {      
+		console.log( "creating ClickedImageDeails for " + this.props.data.imageDisplayed );		
+		return null;
+    },
+
+
+    componentDidMount: function() {   
+	},	
+	
+    componentWillUnmount: function(){        
+    },
+    
+
+    componentDidUpdate: function() {
+    },
+	
+	saveComment: function(text) {
+	},
+	
+	excludeImage: function() {
+	},
+	
+	
+	/**
+	 * @TODO - duped with whats in PhotoShow.html as couldnt get it to invoke it here
+	 */
+	closeSidebar: function() {
+		document.getElementById("clickedImage").style.width = "0";
+		document.getElementById("main").style.marginLeft= "0";
+		document.body.style.backgroundColor = "white";
+	},
+	
+
+    render: function() {
+		
+		console.log( "rendering  ClickedImageDetails for " + this.props.data.imageDisplayed );
+		
+        return ( 
+			<div id="mySideNav">			
+					<a href="javascript:void(0)" className="main closebtn" onclick={this.closeSidebar()}>&times;</a>				
+					
+					<img src={this.props.data.imageDisplayed} width='50' height='50'/>
+					
+					<input type="text" width="50" value={this.props.data.comment} className="form-control" placeholder="Enter comment here.."/>
+					
+					<button id='save-comment-button' type="button" className='btn btn-default' title='Save'
+						onClick={this.saveComment}>Save</button>
+					
+					<button id='exclude-button' type="button" className='btn btn-default' title='exclude'
+						onClick={this.excludeImage}>Exclude</button>
+						                    
+            </div>
         );
     }
 
@@ -789,17 +856,16 @@ var MediaCanvas = React.createClass({
 	 * get an image corresponding to given location
 	 */
 	showSidebar: function( clickedImage ) {		 		 	
-		document.getElementById("mySidenav").style.width = "250px";
+		document.getElementById("clickedImage").style.width = "250px";
 		document.getElementById("main").style.marginLeft = "250px";
 		document.body.style.backgroundColor = "rgba(0,0,0,0.4)";
+		
+		console.log( "opening sidebar for " + clickedImage.imageDisplayed );
+		
+		var details = <ClickedImageDetails data={clickedImage} />;
+        React.render(details, document.getElementById('clickedImage'));		
 	},
 	
-	
-	closeSidebar: function() {
-		//document.getElementById("mySidenav").style.width = "0";
-		//document.getElementById("main").style.marginLeft= "0";
-		//document.body.style.backgroundColor = "white";
-	},
 	
 	
 	// ------------- END HANDLE INTERACTIONS-------------
@@ -808,16 +874,7 @@ var MediaCanvas = React.createClass({
     render: function() {
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
-        return <center>
-				
-				<div id="mySidenav" class="sidenav">
-				  <a href="javascript:void(0)" class="closebtn" onclick={this.closeSidebar()}>&times;</a>
-				  <a href="#">About</a>
-				  <a href="#">Services</a>
-				  <a href="#">Clients</a>
-				  <a href="#">Contact</a>
-				</div>
-
+        return <center>				
 				<div id="main">
 					<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ref={this.refCallback} />
 				</div>
