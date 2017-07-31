@@ -17,7 +17,7 @@ var albums = [
 // caches the chosen album - a hack as should be able to store in React state, but asynch javascript methods causing me trouble
 var album = {};
 
-
+		
 /**
  * Component to choose the show we want to display
  * Presents the list based on above array of albums
@@ -350,59 +350,68 @@ var PhotoShow = React.createClass({
  * Handles rendering of image details - to allow saving comments, excluding from album, adding to other albums etc.
  */
 var ClickedImageDetails = React.createClass({
-      
-    getInitialState: function() {      
-		console.log( "creating ClickedImageDeails for " + this.props.data.imageDisplayed );		
-		return null;
+      		
+    getInitialState: function() {      				
+		return { comment : this.props.data.comment, excluded: false };   // for indexing the photos		
     },
 
-
-    componentDidMount: function() {   
-	},	
-	
-    componentWillUnmount: function(){        
-    },
-    
-
-    componentDidUpdate: function() {
-    },
-	
-	saveComment: function(text) {
+	componentDidMount: function() {        
+		window.clickedImage = this;
 	},
+
+	
+	handleChange: function(v) {		
+		if( event.target.value !== null ) {			
+			this.setState({comment: event.target.value});
+		}
+			
+	},
+	
+	handleSubmit: function(event) {
+		//prompt('Save Comment?: ' + this.state.comment);
+		saveComment();
+	},
+
+	
+	saveComment: function() {
+		console.log( "saving comment: [" + this.state.comment + "] against image " + this.props.data.imageDisplayed );		
+	},
+	
 	
 	excludeImage: function() {
-	},
+		console.log( "excluding image: "+ this.props.data.imageDisplayed + " from album " + album.name );
+		
+	},	
 	
-	
-	/**
-	 * @TODO - duped with whats in PhotoShow.html as couldnt get it to invoke it here
-	 */
-	closeSidebar: function() {
-		document.getElementById("clickedImage").style.width = "0";
-		document.getElementById("main").style.marginLeft= "0";
-		document.body.style.backgroundColor = "white";
-	},
-	
-
     render: function() {
 		
-		console.log( "rendering  ClickedImageDetails for " + this.props.data.imageDisplayed );
+		console.log( "rendering ClickedImageDetails for " + this.props.data.imageDisplayed );
 		
+				
         return ( 
-			<div id="mySideNav">			
-					<a href="javascript:void(0)" className="main closebtn" onclick={this.closeSidebar()}>&times;</a>				
-					
+			<div>
+					<a href="javascript:void(0)" className="closebtn" onClick={function(){window.mediaCanvas.closeSidebar()}}>&times;</a>
+					<a href="#">Exclude</a>
+
+					<p>
 					<img src={this.props.data.imageDisplayed} width='50' height='50'/>
+					</p>
 					
-					<input type="text" width="50" value={this.props.data.comment} className="form-control" placeholder="Enter comment here.."/>
+					<p>
+						<input type="text" width="50" id='comment-field' value={this.state.comment} className="form-control" placeholder="Enter comment here..." 
+							onChange={this.handleChange.bind(this,event)}/>				
+							
+						<button id='save-comment-button' type='button' className='btn btn-default' title='Save' 
+							onClick={this.saveComment}>Save</button>
+					</p>
+											
 					
-					<button id='save-comment-button' type="button" className='btn btn-default' title='Save'
-						onClick={this.saveComment}>Save</button>
-					
-					<button id='exclude-button' type="button" className='btn btn-default' title='exclude'
+					<p>
+					<button id='exclude-button' type="button" className='btn btn-default' title='Exclude'
 						onClick={this.excludeImage}>Exclude</button>
-						                    
-            </div>
+					</p>
+					
+			</div>
         );
     }
 
@@ -821,11 +830,7 @@ var MediaCanvas = React.createClass({
 		
 	handleClick: function(e) {
 		console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );		
-	},
-	
-
-	handleDoubleClick: function(e) {
-		console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );
+		
 		clickedImage = this.getImageAtPosition( e.clientX, e.clientY );
 		
 		if( clickedImage ) {
@@ -837,11 +842,17 @@ var MediaCanvas = React.createClass({
 			
 			this.showSidebar( clickedImage );
 			
-			console.log('saving comment [' + clickedImage.comment + '] against image ' + clickedImage.imageDisplayed );
+			//console.log('saving comment [' + clickedImage.comment + '] against image ' + clickedImage.imageDisplayed );			
+			//this.togglePlayPause();
 			
-			this.togglePlayPause();
 		}
-							
+		
+	},
+	
+
+	handleDoubleClick: function(e) {
+		//console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );							
+		// no double click action
 	},
 	
 
@@ -855,18 +866,41 @@ var MediaCanvas = React.createClass({
 	/** 
 	 * get an image corresponding to given location
 	 */
-	showSidebar: function( clickedImage ) {		 		 	
-		document.getElementById("clickedImage").style.width = "250px";
-		document.getElementById("main").style.marginLeft = "250px";
-		document.body.style.backgroundColor = "rgba(0,0,0,0.4)";
+	showSidebar: function( clickedImage ) {		 	
 		
 		console.log( "opening sidebar for " + clickedImage.imageDisplayed );
 		
+		console.log( "mySidenav " + document.getElementById("mySidenav") );
+		console.log( "main " + document.getElementById("main") );
+		
+		if( document.getElementById("mySidenav") !== null && document.getElementById("main") !== null ) {
+			document.getElementById("mySidenav").style.width = "250px";
+			document.getElementById("main").style.marginLeft = "250px";
+			document.body.style.backgroundColor = "rgba(0,0,0,0.4)";
+		}
+		
+		
 		var details = <ClickedImageDetails data={clickedImage} />;
-        React.render(details, document.getElementById('clickedImage'));		
+        React.render(details, document.getElementById('mySidenav'));		
 	},
 	
 	
+	
+	closeSidebar: function() {
+
+		console.log( "closing sidebar" );
+		
+		if( document.getElementById("mySidenav") !== null && document.getElementById("main") !== null ) {
+			document.getElementById("mySidenav").style.width = "0px";
+			document.getElementById("main").style.marginLeft = "0px";
+			document.body.style.backgroundColor = "white";
+		}
+
+		this.togglePlayPause();
+		
+	},
+	
+
 	
 	// ------------- END HANDLE INTERACTIONS-------------
 	
@@ -874,21 +908,25 @@ var MediaCanvas = React.createClass({
     render: function() {
         // changing this to 100% as opposed to {xxx} caused images to stop rendering
         // find out why!?
-        return <center>				
-				<div id="main">
-					<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ref={this.refCallback} />
-				</div>
-				
-                <div id='media-controls'>
-                    <div className="btn-group">
-                    <button id='play-pause-button' type="button" className='btn btn-default' title='play'
-                         onClick={this.togglePlayPause}>{this.state.playOrPauseAction}</button>
-                    <button id='shuffle-button' type="button" className='btn btn-default' title='shuffle'
-                         onClick={this.toggleShuffle}>{this.state.shuffleOrUnshuffleAction}</button>
-                    </div>      										
-                </div>
-               
-            </center>;
+        return ( <div>
+		
+					<div id="mySidenav" className="sidenav"></div>
+					
+					<div id="main">
+						<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ref={this.refCallback} />
+					</div>
+					
+					<div id='media-controls'>
+						<center>
+						<div className="btn-group">
+						<button id='play-pause-button' type="button" className='btn btn-default' title='play'
+							 onClick={this.togglePlayPause}>{this.state.playOrPauseAction}</button>
+						<button id='shuffle-button' type="button" className='btn btn-default' title='shuffle'
+							 onClick={this.toggleShuffle}>{this.state.shuffleOrUnshuffleAction}</button>
+						</div>      										
+						</center>
+					</div>               
+			</div> );
     }
 
 /** 
