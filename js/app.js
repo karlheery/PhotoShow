@@ -59,17 +59,13 @@ var ShowSelector = React.createClass({
             }
         };
 
-        var pathTemplate = '/getAlbums';
-		var method = 'GET';
+        //var pathTemplate = '/getAlbums';
+		//var method = 'GET';
 		
 		console.log( "retrieving available albums" );    
 		
-        // Each API call returns a promise, that invokes either a success and failure callback
-		
-		// THINK ADDING APIs to Usage Plan with API key broke stuff? ...but removed it and still broke. Must be clearing the cache that broke it since prod one still works!
-		
-		// NOT WORKING BECAUSE OF URL FORMED TO getAlbums... apigClient.invokeApi(method, pathTemplate, params, body, additionalParams) 		
-		/**apigClient.rootGet(params, body, additionalParams)		        
+        // Each API call returns a promise, that invokes either a success and failure callback		
+		apigClient.rootGet(params, body, additionalParams)		        
             .then(function(result){
 
                 console.log( "called getAlbums API: " + result.data );                
@@ -80,7 +76,7 @@ var ShowSelector = React.createClass({
                 }
                 catch (e) { console.error( "problem "  + e); }
 
-            });*/
+            });
                         
     },
 
@@ -197,7 +193,7 @@ var PhotoShow = React.createClass({
         window.fbAsyncInit = function () {
         FB.init({
                 appId: appId,
-				cookie  : true
+				cookie  : false
         });
         
         FB.getLoginStatus(function(response) {
@@ -242,7 +238,7 @@ var PhotoShow = React.createClass({
 				alert("Not-authenticated: " + response.status);				
 								
 				window.location.href="index.html";
-                //FB.login();       // popup approach
+                FB.login();       // popup approach
             }
         }, true);
         };
@@ -375,6 +371,51 @@ var ClickedImageDetails = React.createClass({
 	
 	saveComment: function() {
 		console.log( "saving comment: [" + this.state.comment + "] against image " + this.props.data.imageDisplayed );		
+		
+		// The URL for this is "https://x4jqp9pcgl.execute-api.eu-west-1.amazonaws.com/prod";
+        var apigClient = apigClientFactory.newClient({
+			apiKey:  'PhotoShowWebApp'  // '39g6ekzgwh'
+		});
+
+        var params = {			
+            //This is where any header, path, or querystring request params go. The key is the parameter named as defined in the API            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
+            }
+        };
+        var body = {
+            "media_filename": this.props.data.imageDisplayed,
+			"author": "",	// no author captured
+			"comment": this.state.comment
+        };
+        var additionalParams = {
+            //If there are any unmodeled query parameters or headers that need to be sent with the request you can add them here            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
+            },
+            queryParams: {
+                //param0: '',
+                //param1: ''
+            }
+        };
+
+		
+        // Each API call returns a promise, that invokes either a success and failure callback		
+		apigClient.photoCommentsPost(params, body, additionalParams)		        
+            .then(function(result){
+
+                console.log( "saved comment: " + result.data );                
+
+                try{
+                    // now save the new state of albums as a result of API call
+					
+					// @TODO NOW SHOW THE COMMENT ON THE PICTURE!                    
+                }
+                catch (e) { console.error( "problem "  + e); }
+
+            });
+                  
+				  
 	},
 	
 	
@@ -808,6 +849,7 @@ var MediaCanvas = React.createClass({
 		for(var i=0; i < this.state.imageLocations.length; i++) {
 			
 			canvasImage = this.state.imageLocations[i];
+			console.log('checking ' + canvasImage.X + ', ' + canvasImage.Y + ' width:' + canvasImage.width + ' height:' + canvasImage.height );	
 						
 			// this is crude but given limited rotation and the fact we dont allow clicking of media hiding behind other media, is good enough...?
 			//
