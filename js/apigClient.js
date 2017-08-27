@@ -86,17 +86,20 @@ apigClientFactory.newClient = function (config) {
     apigClient.rootGet = function (params, body, additionalParams) {
         if(additionalParams === undefined) { additionalParams = {}; }
         
-        apiGateway.core.utils.assertParametersDefined(params, ['Access-Control-Allow-Origin'], ['body']);
+        //apiGateway.core.utils.assertParametersDefined(params, ['Access-Control-Allow-Origin'], ['body']);
+		apiGateway.core.utils.assertParametersDefined(params, [], ['body']);
         
         var rootGetRequest = {
             verb: 'get'.toUpperCase(),
             path: pathComponent + uritemplate('/').expand(apiGateway.core.utils.parseParametersToObject(params, [])),
-            headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin']),
+            //headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin']),
+			headers: apiGateway.core.utils.parseParametersToObject(params, []),
             queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
             body: body
         };
         
-        
+        console.log( "request is : " + rootGetRequest );
+		
         return apiGatewayClient.makeRequest(rootGetRequest, authType, additionalParams, config.apiKey);
     };
     

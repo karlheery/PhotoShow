@@ -168,9 +168,9 @@ var PhotoShow = React.createClass({
     componentDidMount: function() {
 
         // PROD 
-        //var appId = '754651064672675';
+        var appId = '754651064672675';
         // DEV
-        var appId = '757081597762955';
+        //var appId = '757081597762955';
 
         var roleArn = 'arn:aws:iam::827454618391:role/PhotoShowRole';
         var bucketName = 'khphotoshow';
@@ -674,6 +674,10 @@ var MediaCanvas = React.createClass({
                     switch(orientation){
                     case 1:
                         // i'm fine - leave me as is
+                    break;
+                    case 3:
+                        // 180° rotate right
+                        context.rotate(Math.PI);
                     break;
                     case 6:
                         // 90° rotate right
