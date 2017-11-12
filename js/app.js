@@ -14,6 +14,8 @@ var albums = [
 ];
 
 
+var comments = {};
+
 // caches the chosen album - a hack as should be able to store in React state, but asynch javascript methods causing me trouble
 var album = {};
 
@@ -167,11 +169,12 @@ var PhotoShow = React.createClass({
 
     componentDidMount: function() {
 
-        // PROD 
-        var appId = '754651064672675';
         // DEV
-        //var appId = '757081597762955';
+        var appId = '757081597762955';
 
+		// PROD 
+        //var appId = '754651064672675';
+        
         var roleArn = 'arn:aws:iam::827454618391:role/PhotoShowRole';
         var bucketName = 'khphotoshow';
         AWS.config.region = 'eu-west-1';
@@ -221,8 +224,9 @@ var PhotoShow = React.createClass({
                 // if we want FB specific folder access do it here
                 console.log( "getting S3 objects from " + album.basedir + " that contains " + album.name_contains );
 
-                window.photoShow.loadFilesFromS3( bucket, album, 0, null );
-
+                window.photoShow.loadFilesFromS3( bucket, album, 0, null );				
+				window.photoShow.loadComments( album );
+	
                 // @TODO hack in snow for now 
                 if( album.name == "Christmas" ) {
                     console.log("starting show...");
@@ -271,7 +275,7 @@ var PhotoShow = React.createClass({
         // parameters for the search
         var params = {
             Prefix: album.basedir
-        };
+        };	
 
         // pick up where we left off
         if( marker ) {
@@ -321,8 +325,64 @@ var PhotoShow = React.createClass({
                 }
             }
         }); // end of function
+				
+		
     },
 
+	
+	
+	
+    /**
+     * cache comments for album (or indeed for now - all media)
+     */
+    loadComments: function( album ) {
+
+		console.log( "loading comments for" );		
+		
+		// The URL for this is "https://x4jqp9pcgl.execute-api.eu-west-1.amazonaws.com/prod";
+        var apigClient = apigClientFactory.newClient({
+			apiKey:  'PhotoShowWebApp'  // '39g6ekzgwh'
+		});
+
+        var params = {			
+            //This is where any header, path, or querystring request params go. The key is the parameter named as defined in the API            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
+            }
+        };
+        var body = {
+            "album": this.album
+        };
+		var additionalParams = {
+            //If there are any unmodeled query parameters or headers that need to be sent with the request you can add them here            
+			headers: {
+                "Access-Control-Allow-Origin" : "*" // Required for CORS support to work
+            },
+            queryParams: {
+                //param0: '',
+                //param1: ''
+            }
+        };
+
+		
+        // Each API call returns a promise, that invokes either a success and failure callback		
+		apigClient.getallcommentsGet(params, body, additionalParams)		        
+            .then(function(result){
+                
+                try{
+					commentsData = result.data.body;
+					this.album.comments = JSON.parse(commentsData);					
+					this.album.comments = this.album.comments.Comments;
+					console.log( "retrieved " + this.album.comments.length + " comments" );                
+				}
+                catch (e) { 
+					this.album.comments = {}; 
+					console.error( "problem "  + e); 
+				}
+
+            });
+        
+	},
 
 
     render: function() {
@@ -404,12 +464,22 @@ var ClickedImageDetails = React.createClass({
 		apigClient.photoCommentsPost(params, body, additionalParams)		        
             .then(function(result){
 
-                console.log( "saved comment: " + result.data );                
+				console.log( "Response: " + JSON.stringify(result.data) );
 
                 try{
-                    // now save the new state of albums as a result of API call
-					
+                    // now cache & show the new comment
+					//
+					this.album.comments.push(result.data.Comment);
+					window.mediaCanvas.closeSidebar();
+										
 					// @TODO NOW SHOW THE COMMENT ON THE PICTURE!                    
+					var canvas = document.getElementById( 'mediaview' );
+					var context = canvas.getContext('2d');        					
+					context.font = 'italic 20pt Calibri';
+					context.fillStyle = "#FF2222";                                                                                
+					context.fillText( result.data.Comment.comment.comment_text, 200, 50 );									
+					context.font = 'italic 10pt Calibri';
+					
                 }
                 catch (e) { console.error( "problem "  + e); }
 
@@ -501,9 +571,9 @@ var MediaCanvas = React.createClass({
 
             //context.globalAlpha = 0.5;
             //context.font = "Comic Sans MS";
-            context.font = "20px Sans Serif";
+            context.font = "italic 20px Calibri";			
             context.textBaseline = "top";
-            context.fillStyle = "#6666BB";            
+            context.fillStyle = "#AAAAFF bold";            
             //context.fillText( "hello", 20, 20 );
             context.fillText( description, 20, 20 );
             //context.globalAlpha = 1.0;   
@@ -598,7 +668,7 @@ var MediaCanvas = React.createClass({
 
 
         // font setting for writing on photos
-        context.font = "10px Sans Serif";
+        context.font = "italic 10px Calibri";
         context.textBaseline = "top";            
 
         // Getting image data
@@ -634,12 +704,14 @@ var MediaCanvas = React.createClass({
 
                 var orientation;
                 var dateTaken;
+				var comment;
 								
                 EXIF.getData(image, function() {
                     var orientation = EXIF.getTag(this, "Orientation");                   
                     var dateTaken = EXIF.getTag(this, "DateTimeOriginal");
                     if( !(dateTaken === undefined || dateTaken == null || dateTaken.length <= 0) ) {
-                        //console.log( dateTaken );
+                        // TODO
+						//console.log( dateTaken );
                         // NOT WORKING?!?!?!
                         //var d1 = Date.parseExact(dateTaken, 'yyyy:MM:dd hh:mm:ss' );
                         //console.log( d1 );
@@ -661,13 +733,18 @@ var MediaCanvas = React.createClass({
                     // I think this is causing next image to catch up and 2 x save/translate/rotations to clash, hitting a memory error?
                     // Tip: keep images small or implement a MutEx Semaphore?
                     context.save();  
-					
+				
+					// find a comment (if there is one) for the image
+					//
+					comment = window.mediaCanvas.getCommentForImage( mediafile, album );
+
 					// save position and shape (roughly! i.e. pre-rotation) to help click detection for actions
 					var finalXPos = xpos+(scaledWidth/2); 
 					var finalYPos = ypos+0.5*(scaledHeight/2);
-					
-					// @TODO: need comment from database still!
-					window.mediaCanvas.saveImagePosition( mediafile, finalXPos, finalYPos, scaledWidth, scaledHeight, "" );
+									
+					// save details on image for sidebar matching
+					//					
+					window.mediaCanvas.saveImagePosition( mediafile, finalXPos, finalYPos, scaledWidth, scaledHeight, comment );
 					
                     context.translate(finalXPos, finalYPos);
 
@@ -703,8 +780,15 @@ var MediaCanvas = React.createClass({
                         context.fillRect( -(scaledWidth/2)-7, -(scaledHeight/2)-7, scaledWidth+14, scaledHeight+30);
 
                         window.mediaCanvas.shadowOn( false );
+						
+						// write the comment slightly in from bottom left of polaroid, in dark dark grey
+						context.fillStyle = "#222222";                                                                                
+                        context.fillText( comment, scaledWidth/2*-1+0, scaledHeight/2-0 );
+						
+						// write the time taken slightly in absolute bottom right of polaroid, in lighter grey
                         context.fillStyle = "#888888";                                                                                
-                        context.fillText( dateTaken, scaledWidth/2-85, scaledHeight/2-0 );
+                        context.fillText( dateTaken, scaledWidth/2-85, scaledHeight/2+2 );
+
                     }
                     else {   
                         context.fillStyle = "#EEEEEE";
@@ -817,6 +901,41 @@ var MediaCanvas = React.createClass({
     },
 
 
+	/**
+	 * Return the comment from the cash for a given image.
+	 * Used to show on polaroid canvas and stored against image and position for sidebar
+	 */	 
+	getCommentForImage: function( mediaFile, album ) {
+		
+		if( !album.comments || album.comments.length <= 0 ) {
+            console.log( "cant find any comments (at all!?)"  );
+            return "";
+		}
+		
+		// look for and return comment if found
+		for(var i=0; i < album.comments.length; i++) {			
+		
+			// match on file name only, not on directory etc. as that could change
+			// split it based on folder seperator and take last val in array
+			//
+			a = mediaFile.split('/');
+			thisMediaFile = a[a.length-1];
+			
+			a = album.comments[i].media_filename.split('/');
+			commentedMediaFile = a[a.length-1];			
+			
+			// have a trailing " sometimes, so cheat with startsWith...
+			if( commentedMediaFile.startsWith (thisMediaFile) ) {				
+				console.log( "found comment for " + thisMediaFile + " at " + i + ": " + album.comments[i].comment.comment_text);
+				return album.comments[i].comment.comment_text.replace("\"", "");
+			}			
+			
+		}
+		
+		return "";
+					
+	},
+	
 	
 	/** 
 	 * As an image is displayed save the image file and location details for later retrieval on a user event (e.g. mouse click)
@@ -834,7 +953,7 @@ var MediaCanvas = React.createClass({
 		// if we exceed 4 items in cache, we'll prune the oldest before adding the next
 		// @TODO: this only works because we've hardcoded showing images in 4 sections. 
 		// So there is bad coupling here!
-		if( this.state.imageLocations.length > 4 ) {
+		if( this.state.imageLocations.length >= 4 ) {
 			this.state.imageLocations.shift();
 		}
 					
@@ -856,9 +975,10 @@ var MediaCanvas = React.createClass({
 			console.log('checking ' + canvasImage.X + ', ' + canvasImage.Y + ' width:' + canvasImage.width + ' height:' + canvasImage.height );	
 						
 			// this is crude but given limited rotation and the fact we dont allow clicking of media hiding behind other media, is good enough...?
+			// note final canvasImage.X & canvasImage.Y are the centre not the top-left
 			//
-			if( canvasImage.X < X && (canvasImage.X + canvasImage.width) > X &&
-				canvasImage.Y < Y && (canvasImage.Y + canvasImage.height) > Y ) {
+			if( (canvasImage.X - canvasImage.width/2) < X && (canvasImage.X + canvasImage.width/2) > X &&
+				(canvasImage.Y - canvasImage.height/2) < Y && (canvasImage.Y + canvasImage.height/2) > Y ) {
 			
 				console.log( 'User hit: (' + X + ', ' + Y + ') which is on ' + canvasImage.imageDisplayed );			
 						
@@ -875,9 +995,19 @@ var MediaCanvas = React.createClass({
 	// ----------- HANDLE INTERACTIONS -------------------
 		
 	handleClick: function(e) {
-		console.log('identifying photo at (' + e.clientX + ', ' + e.clientY + ')' );		
 		
-		clickedImage = this.getImageAtPosition( e.clientX, e.clientY );
+		var x = e.clientX;
+		var y = e.clientY;
+		
+		// handle ipad touches?
+		if( event.touches && event.touches.length > 0 ) {
+			x = event.touches[0].pageX;
+			y = event.touches[0].pageY;
+		}
+		
+		console.log('identifying photo at (' + x + ', ' + y + ')' );		
+		
+		clickedImage = this.getImageAtPosition( x, y );
 		
 		if( clickedImage ) {
 			this.pauseShow();
@@ -889,10 +1019,8 @@ var MediaCanvas = React.createClass({
 			this.showSidebar( clickedImage );
 			
 			//console.log('saving comment [' + clickedImage.comment + '] against image ' + clickedImage.imageDisplayed );			
-			//this.togglePlayPause();
-			
-		}
-		
+			//this.togglePlayPause();			
+		}		
 	},
 	
 
@@ -915,10 +1043,7 @@ var MediaCanvas = React.createClass({
 	showSidebar: function( clickedImage ) {		 	
 		
 		console.log( "opening sidebar for " + clickedImage.imageDisplayed );
-		
-		console.log( "mySidenav " + document.getElementById("mySidenav") );
-		console.log( "main " + document.getElementById("main") );
-		
+				
 		if( document.getElementById("mySidenav") !== null && document.getElementById("main") !== null ) {
 			document.getElementById("mySidenav").style.width = "250px";
 			document.getElementById("main").style.marginLeft = "250px";
@@ -959,7 +1084,7 @@ var MediaCanvas = React.createClass({
 					<div id="mySidenav" className="sidenav"></div>
 					
 					<div id="main">
-						<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ref={this.refCallback} />
+						<canvas id="mediaview" width={900} height={600} onClick={this.handleClick} ontouchstart={this.handleClick} ref={this.refCallback} />
 					</div>
 					
 					<div id='media-controls'>

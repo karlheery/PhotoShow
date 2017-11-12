@@ -98,8 +98,7 @@ apigClientFactory.newClient = function (config) {
             body: body
         };
         
-        console.log( "request is : " + rootGetRequest );
-		
+        
         return apiGatewayClient.makeRequest(rootGetRequest, authType, additionalParams, config.apiKey);
     };
     
@@ -158,6 +157,44 @@ apigClientFactory.newClient = function (config) {
     };
     
     
+    apigClient.getallcommentsGet = function (params, body, additionalParams) {
+        if(additionalParams === undefined) { additionalParams = {}; }
+        
+        apiGateway.core.utils.assertParametersDefined(params, [], ['body']);
+        			
+        var getallcommentsGetRequest = {
+            verb: 'get'.toUpperCase(),
+            path: pathComponent + uritemplate('/getallcomments').expand(apiGateway.core.utils.parseParametersToObject(params, [])),		
+            //headers: apiGateway.core.utils.parseParametersToObject(params, []),
+			headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin']),
+            queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
+            body: body
+        };
+        
+        
+        return apiGatewayClient.makeRequest(getallcommentsGetRequest, authType, additionalParams, config.apiKey);
+    };
+    
+    
+    apigClient.getallcommentsOptions = function (params, body, additionalParams) {
+        if(additionalParams === undefined) { additionalParams = {}; }
+        
+        apiGateway.core.utils.assertParametersDefined(params, [], ['body']);
+        
+        var getallcommentsOptionsRequest = {
+            verb: 'options'.toUpperCase(),
+            path: pathComponent + uritemplate('/getallcomments').expand(apiGateway.core.utils.parseParametersToObject(params, [])),
+            //headers: apiGateway.core.utils.parseParametersToObject(params, []),
+			headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin'] ),
+            queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
+            body: body
+        };
+        
+        
+        return apiGatewayClient.makeRequest(getallcommentsOptionsRequest, authType, additionalParams, config.apiKey);
+    };
+    
+    
     apigClient.photoCommentsPost = function (params, body, additionalParams) {
         if(additionalParams === undefined) { additionalParams = {}; }
         
@@ -165,8 +202,9 @@ apigClientFactory.newClient = function (config) {
         
         var photoCommentsPostRequest = {
             verb: 'post'.toUpperCase(),
-            path: pathComponent + uritemplate('/photo/comments').expand(apiGateway.core.utils.parseParametersToObject(params, [])),
-            headers: apiGateway.core.utils.parseParametersToObject(params, []),
+            path: pathComponent + uritemplate('/photo/comments').expand(apiGateway.core.utils.parseParametersToObject(params, [])),            
+			//headers: apiGateway.core.utils.parseParametersToObject(params, []),
+			headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin']),
             queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
             body: body
         };
@@ -184,7 +222,8 @@ apigClientFactory.newClient = function (config) {
         var photoCommentsOptionsRequest = {
             verb: 'options'.toUpperCase(),
             path: pathComponent + uritemplate('/photo/comments').expand(apiGateway.core.utils.parseParametersToObject(params, [])),
-            headers: apiGateway.core.utils.parseParametersToObject(params, []),
+            //headers: apiGateway.core.utils.parseParametersToObject(params, []),
+			headers: apiGateway.core.utils.parseParametersToObject(params, ['Access-Control-Allow-Origin']),
             queryParams: apiGateway.core.utils.parseParametersToObject(params, []),
             body: body
         };
